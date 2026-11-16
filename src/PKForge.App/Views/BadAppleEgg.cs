@@ -1,5 +1,5 @@
 #if ANDROID
-using SongPlayer = Android.Media.SongPlayer;
+using SongPlayer = Android.Media.MediaPlayer;
 #else
 using SongPlayer = AVFoundation.AVAudioPlayer;
 #endif
@@ -78,7 +78,7 @@ public sealed class BadAppleEgg : IPadHandler
         _ = StartSongAsync();
     }
 
-    /// <summary>The song plays from a copy in the cache: SongPlayer cannot read the APK's compressed assets.</summary>
+    /// <summary>The song plays from a copy in the cache: MediaPlayer cannot read the APK's compressed assets.</summary>
     private async Task StartSongAsync()
     {
         try
