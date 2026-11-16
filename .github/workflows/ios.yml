@@ -15,7 +15,7 @@ jobs:
     permissions:
       contents: write
     # iOS apps can only be built on macOS with Xcode.
-    runs-on: macos-26
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
         with:
