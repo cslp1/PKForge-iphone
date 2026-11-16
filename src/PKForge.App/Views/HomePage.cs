@@ -169,6 +169,7 @@ public sealed partial class HomePage : ContentPage, IPadHandler
     /// </summary>
     private static void BlockNativeFocus(View view)
     {
+#if ANDROID
         view.HandlerChanged += (_, _) =>
         {
             if (view.Handler?.PlatformView is Android.Views.View platform)
@@ -177,6 +178,7 @@ public sealed partial class HomePage : ContentPage, IPadHandler
                 platform.FocusableInTouchMode = false;
             }
         };
+#endif
     }
 
     /// <summary>
@@ -188,6 +190,26 @@ public sealed partial class HomePage : ContentPage, IPadHandler
     /// </summary>
     private static void AttachPress(View view, Action onTap, Action onLongPress)
     {
+#if IOS
+        // UIKit's own recognizers: a tap waits for the long press to fail, and the shelf's
+        // scroll view cancels both when the finger drags.
+        view.HandlerChanged += (_, _) =>
+        {
+            if (view.Handler?.PlatformView is not UIKit.UIView platform) return;
+            platform.UserInteractionEnabled = true;
+            var longPress = new UIKit.UILongPressGestureRecognizer(recognizer =>
+            {
+                if (recognizer.State != UIKit.UIGestureRecognizerState.Began) return;
+                using var haptic = new UIKit.UIImpactFeedbackGenerator(UIKit.UIImpactFeedbackStyle.Medium);
+                haptic.ImpactOccurred();
+                onLongPress();
+            });
+            var tap = new UIKit.UITapGestureRecognizer(() => onTap());
+            tap.RequireGestureRecognizerToFail(longPress);
+            platform.AddGestureRecognizer(longPress);
+            platform.AddGestureRecognizer(tap);
+        };
+#else
         view.HandlerChanged += (_, _) =>
         {
             if (view.Handler?.PlatformView is not Android.Views.View platform) return;
@@ -231,6 +253,7 @@ public sealed partial class HomePage : ContentPage, IPadHandler
                 e.Handled = true;
             };
         };
+#endif
     }
 
     // Once per launch, not per page: a color scheme change rebuilds Home, and the new page
@@ -1110,7 +1133,11 @@ public sealed partial class HomePage : ContentPage, IPadHandler
         }
         catch (Exception error)
         {
+#if ANDROID
             Android.Util.Log.Warn("PKForgeUpdate", $"Automatic update check failed: {error}");
+#else
+            AppLog.Warn("update", $"Update check failed: {error.Message}");
+#endif
             if (!automatic)
                 _viewModel.Status = $"Update check failed. {Domain.ErrorText.Plain(error)}";
             return;
@@ -1166,7 +1193,11 @@ public sealed partial class HomePage : ContentPage, IPadHandler
         }
         catch (Exception error)
         {
+#if ANDROID
             Android.Util.Log.Error("PKForgeUpdate", $"Download/install failed: {error}");
+#else
+            AppLog.Error("update", "Opening the update failed", error);
+#endif
             _viewModel.Status = $"Update failed. {Domain.ErrorText.Plain(error)}";
             var openRelease = await PadMenu.ConfirmAsync(_hostGrid, "Open the release page?",
                 "The in-app installer could not finish. The GitHub release page has the same APK.", "Open");

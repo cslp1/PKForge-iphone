@@ -1,5 +1,7 @@
 using System.Text.Json;
+#if ANDROID
 using Android.App;
+#endif
 using PKForge.Domain;
 
 #if ANDROID
@@ -26,6 +28,13 @@ public sealed class AppUpdateService
 
     public static bool CanInstallUpdates() => CanRequestInstalls();
 
+    // The release asset this platform installs: iOS sideloads an IPA (the release page opens).
+#if IOS
+    private const string PackageExtension = ".ipa";
+#else
+    private const string PackageExtension = ".apk";
+#endif
+
     public async Task<AppUpdateCheck> CheckAsync(CancellationToken cancellationToken = default)
     {
         if (AppInfo.Current.PackageName?.EndsWith(".debug", StringComparison.OrdinalIgnoreCase) == true)
@@ -51,11 +60,11 @@ public sealed class AppUpdateService
 
         var asset = root.TryGetProperty("assets", out var assets)
             ? assets.EnumerateArray()
-                .Where(a => a.TryGetProperty("name", out var name) && name.GetString()?.EndsWith(".apk", StringComparison.OrdinalIgnoreCase) == true)
+                .Where(a => a.TryGetProperty("name", out var name) && name.GetString()?.EndsWith(PackageExtension, StringComparison.OrdinalIgnoreCase) == true)
                 .FirstOrDefault()
             : default;
         if (asset.ValueKind == JsonValueKind.Undefined)
-            throw new InvalidDataException("The latest release did not include an APK.");
+            throw new InvalidDataException($"The latest release did not include an {PackageExtension.TrimStart('.').ToUpperInvariant()}.");
 
         var downloadUrl = asset.GetProperty("browser_download_url").GetString();
         if (string.IsNullOrWhiteSpace(downloadUrl))
@@ -202,6 +211,11 @@ public sealed class AppUpdateService
             || maker.Equals("POCO", StringComparison.OrdinalIgnoreCase)
             || maker.Equals("Redmi", StringComparison.OrdinalIgnoreCase));
 #pragma warning restore CA1416
+#else
+    // iOS cannot install a package from inside an app: updates open the release page instead.
+    private static bool CanRequestInstalls() => false;
+
+    public static void OpenInstallPermissionSettings() { }
 #endif
 }
 

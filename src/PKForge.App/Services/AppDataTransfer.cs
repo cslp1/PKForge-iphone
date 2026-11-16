@@ -1,5 +1,7 @@
 using System.Globalization;
+#if ANDROID
 using Android.Content;
+#endif
 using PKForge.Domain;
 using PKForge.Infrastructure;
 
@@ -19,6 +21,7 @@ public static class AppDataTransfer
     /// <summary>Safety archives live beside the data but outside what an archive holds.</summary>
     public static string SafetyFolder => Path.Combine(Root, "data-safety");
 
+#if ANDROID
     // MAUI keeps Preferences.Default in the app's default shared preferences file.
     private static ISharedPreferences Store =>
         Android.App.Application.Context.GetSharedPreferences($"{Android.App.Application.Context.PackageName}_preferences", FileCreationMode.Private)
@@ -60,6 +63,52 @@ public static class AppDataTransfer
         }
         if (!editor.Commit()) throw new IOException("The settings could not be saved.");
     }
+#elif IOS
+    // MAUI keeps Preferences.Default in the standard user defaults: the app's own persistent
+    // domain holds exactly what PKForge stored (no system-wide keys). MAUI writes a long as
+    // its decimal text, so a long travels as "string" and reads back the same way.
+    public static IReadOnlyList<PreferenceValue> ReadPreferences()
+    {
+        var values = new List<PreferenceValue>();
+        var domain = Foundation.NSBundle.MainBundle.BundleIdentifier;
+        var stored = Foundation.NSUserDefaults.StandardUserDefaults.PersistentDomainForName(domain);
+        if (stored is not null)
+            foreach (var (rawKey, value) in stored)
+            {
+                var key = rawKey.ToString();
+                switch (value)
+                {
+                    case Foundation.NSString text: values.Add(new(key, "string", text.ToString())); break;
+                    case Foundation.NSNumber number:
+                        values.Add(number.ObjCType switch
+                        {
+                            "c" or "B" => new(key, "bool", number.BoolValue ? "true" : "false"),
+                            "f" or "d" => new(key, "float", number.FloatValue.ToString("R", CultureInfo.InvariantCulture)),
+                            _ => new(key, "int", number.Int32Value.ToString(CultureInfo.InvariantCulture)),
+                        });
+                        break;
+                    default: AppLog.Warn("transfer", $"Preference {key} has a type an archive does not carry; left out"); break;
+                }
+            }
+        return [.. values.OrderBy(v => v.Key, StringComparer.Ordinal)];
+    }
+
+    /// <summary>Writes the preferences an import applies, each with its own type, through MAUI's own store.</summary>
+    public static void ApplyPreferences(IReadOnlyList<PreferenceValue> values)
+    {
+        foreach (var value in DataTransfer.ToApply(values))
+        {
+            switch (value.Type)
+            {
+                case "bool": Preferences.Default.Set(value.Key, value.Value == "true"); break;
+                case "int": Preferences.Default.Set(value.Key, int.Parse(value.Value, CultureInfo.InvariantCulture)); break;
+                case "long": Preferences.Default.Set(value.Key, long.Parse(value.Value, CultureInfo.InvariantCulture)); break;
+                case "float": Preferences.Default.Set(value.Key, float.Parse(value.Value, CultureInfo.InvariantCulture)); break;
+                default: Preferences.Default.Set(value.Key, value.Value); break;
+            }
+        }
+    }
+#endif
 
     /// <summary>Writes an archive of everything here to <paramref name="path"/>.</summary>
     public static DataArchiveManifest ExportTo(string path)

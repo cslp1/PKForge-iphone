@@ -181,6 +181,15 @@ Download the APK from [Releases](https://github.com/sofianeelhor/PKForge/release
 allow installs from unknown sources. First run walks you through linking an emulator or
 opening a single save file.
 
+### iOS (sideload)
+
+Download `PKForge-<version>.ipa` from [Releases](https://github.com/sofianeelhor/PKForge/releases)
+and install it with AltStore, SideStore, Sideloadly or TrollStore (they sign it with your own
+Apple ID). Link an emulator by picking its save folder in the Files picker (for example
+*On My iPhone › RetroArch › saves*), or open a single save file. iPhone and iPad builds have no
+second screen and no home-screen widgets; everything else works the same, with touch or a
+paired controller.
+
 New to PKForge? Start with [Getting Started](https://github.com/sofianeelhor/PKForge/wiki/Getting-Started).
 If PKForge finds no saves, the folder picked is usually the wrong one: see
 [Choosing the right folder](https://github.com/sofianeelhor/PKForge/wiki/Choosing-the-Right-Folder).
@@ -206,6 +215,18 @@ dotnet build src/PKForge.App/PKForge.App.csproj -f net10.0-android
 
 Version tags build and publish the APK from CI.
 
+The iOS app builds on macOS only (Xcode and the `maui-ios` workload). `PKForgePlatform=ios`
+builds the iOS head alone, so the Android workload is not needed there:
+
+```bash
+dotnet build src/PKForge.App/PKForge.App.csproj -c Release -f net10.0-ios \
+  -p:PKForgePlatform=ios -p:RuntimeIdentifier=ios-arm64 -p:EnableCodeSigning=false
+```
+
+`.github/workflows/ios.yml` does this on a macOS runner and packages an unsigned `.ipa` for
+sideloading (an artifact on every push, a release asset on version tags). iOS-only code lives in
+`src/PKForge.App/Platforms/iOS`.
+
 ### Layout
 
 ```
@@ -213,7 +234,7 @@ src/PKForge.Domain          contracts and DTOs, no engine or Android dependencie
 src/PKForge.Engine          adapters over pinned PKHeX.Core
 src/PKForge.AutoMod         compiles the Auto Legality Mod against our Core
 src/PKForge.Infrastructure  bank, backups, atomic save writer
-src/PKForge.App             MAUI app, SkiaSharp UI, gamepad and second screen
+src/PKForge.App             MAUI app (Android, iOS), SkiaSharp UI, gamepad and second screen
 src/PKForge.Chrome          the design system: tokens and painters, pure Skia
 tools/ChromePreview         renders the design system off-device
 docs/                       architecture, bank model, development, art direction

@@ -1,6 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net10.0-android</TargetFramework>
+    <!-- Android everywhere; iOS where it can be built (macOS with Xcode). CI on macOS passes
+         -p:PKForgePlatform=ios to build iOS alone, without the Android workload. -->
+    <TargetFrameworks>net10.0-android</TargetFrameworks>
+    <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('osx'))">net10.0-android;net10.0-ios</TargetFrameworks>
+    <TargetFrameworks Condition="'$(PKForgePlatform)' == 'ios'">net10.0-ios</TargetFrameworks>
     <OutputType>Exe</OutputType>
     <RootNamespace>PKForge.App</RootNamespace>
     <UseMaui>true</UseMaui>
@@ -12,7 +16,22 @@
     <ApplicationTitle>PKForge</ApplicationTitle>
     <ApplicationVersion>320</ApplicationVersion>
     <ApplicationDisplayVersion>3.2.0</ApplicationDisplayVersion>
+  </PropertyGroup>
+  <PropertyGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
     <RuntimeIdentifiers>android-arm64</RuntimeIdentifiers>
+  </PropertyGroup>
+  <PropertyGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">
+    <SupportedOSPlatformVersion>15.0</SupportedOSPlatformVersion>
+    <!-- PKHeX and AutoMod load their tables by resource name and use reflection: only the
+         SDK is trimmed (the iOS counterpart of Platforms/Android/linker.xml). -->
+    <MtouchLink>SdkOnly</MtouchLink>
+    <!-- Everything is AOT-compiled; the interpreter only covers code AOT cannot pre-compile. -->
+    <MtouchInterpreter>-all</MtouchInterpreter>
+    <!-- The iOS-only code is new and has not had the Android head's years of warning cleanup. -->
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+  </PropertyGroup>
+  <PropertyGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios' And '$(Configuration)' == 'Release'">
+    <RuntimeIdentifier>ios-arm64</RuntimeIdentifier>
   </PropertyGroup>
   <PropertyGroup Condition="'$(DiagnosticBuild)' == 'true'">
     <!-- Diagnostic builds install beside production and cannot overwrite its app-private data. -->

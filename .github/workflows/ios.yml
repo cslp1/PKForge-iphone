@@ -1,0 +1,67 @@
+name: ios
+
+# Builds an unsigned PKForge .ipa for sideloading (AltStore, SideStore, Sideloadly, TrollStore).
+# Those tools sign it with the player's own Apple ID on install; nothing here needs Apple secrets.
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  ipa:
+    permissions:
+      contents: write
+    # iOS apps can only be built on macOS with Xcode.
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Select the newest stable Xcode
+        run: |
+          xcode=$(ls -d /Applications/Xcode_*.app | grep -vi beta | sort -V | tail -1)
+          echo "Using $xcode"
+          sudo xcode-select -s "$xcode"
+          xcodebuild -version
+      - name: Install MAUI iOS workload
+        run: dotnet workload install maui-ios
+      - name: Build the app (device, Release, AOT)
+        # PKForgePlatform=ios builds the iOS head alone, so the Android workload is not needed.
+        run: |
+          dotnet build src/PKForge.App/PKForge.App.csproj \
+            --configuration Release -f net10.0-ios \
+            -p:PKForgePlatform=ios \
+            -p:RuntimeIdentifier=ios-arm64 \
+            -p:EnableCodeSigning=false
+      - name: Package the IPA
+        id: ipa
+        run: |
+          app=$(find src/PKForge.App/bin/Release/net10.0-ios/ios-arm64 -maxdepth 1 -name '*.app' -type d | head -1)
+          if [[ -z "$app" ]]; then echo "No .app was produced"; exit 1; fi
+          echo "App bundle: $app"
+          # Ad-hoc signature: TrollStore installs it as is; the other sideloaders re-sign it.
+          codesign --force --deep --sign - "$app"
+          staging="$RUNNER_TEMP/ipa"
+          rm -rf "$staging" && mkdir -p "$staging/Payload"
+          cp -R "$app" "$staging/Payload/"
+          name="PKForge-${GITHUB_REF_NAME//\//-}.ipa"
+          (cd "$staging" && zip -qry "$GITHUB_WORKSPACE/$name" Payload)
+          ls -lh "$name"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v4
+        if: github.ref_type != 'tag'
+        with:
+          name: pkforge-ipa
+          path: ${{ steps.ipa.outputs.name }}
+          retention-days: 7
+      - name: Release
+        if: github.ref_type == 'tag'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ steps.ipa.outputs.name }}

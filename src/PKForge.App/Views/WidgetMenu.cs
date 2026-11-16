@@ -10,6 +10,10 @@ namespace PKForge.App.Views;
 /// <summary>The widgets the menu offers, in tab order.</summary>
 public enum HomeWidgetTab { Pokepark, Walker, Partner, Egg }
 
+// The menu itself is Android only (it pins and previews Android widgets); iOS has a stand-in
+// in Platforms/iOS/Widgets.cs.
+#if ANDROID
+
 /// <summary>
 /// The home-screen widgets menu (Settings › Look and feel, and the Poképark's options), painted by
 /// <see cref="WidgetMenuPaint"/>: each widget on a tab with a live pixel preview (the real widget's
@@ -470,3 +474,4 @@ public sealed class WidgetMenu : IPadHandler
         _closed.TrySetResult();
     }
 }
+#endif

@@ -1,3 +1,5 @@
+// Android only (Choreographer): Platforms/iOS/VsyncLoop.cs is the iOS loop with the same API.
+#if ANDROID
 using Android.Views;
 
 namespace PKForge.App.Services;
@@ -69,3 +71,4 @@ public sealed class VsyncLoop : Java.Lang.Object, Choreographer.IFrameCallback
         else IsRunning = false;
     }
 }
+#endif
